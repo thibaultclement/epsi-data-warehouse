@@ -1,0 +1,537 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Variables du TP
+\newcommand{\TPModule}{Datawarehouse}
+\newcommand{\TPNumero}{2}
+\newcommand{\TPKeywords}{datawarehouse, datamart, star schema, dbt, KPI}
+\newcommand{\TPSujet}{Modélisation décisionnelle et couche GOLD (CORRECTION)}
+\newcommand{\TPTheme}{Clinique}
+\input{preamble}
+
+\begin{document}
+\TPFrontPage
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Contexte}
+
+Lors du TP1, vous avez :
+
+\begin{itemize}
+  \item exploré les données sources,
+  \item mis en place une couche \textbf{BRONZE} historisée,
+  \item construit une couche \textbf{SILVER} propre et testée via dbt.
+\end{itemize}
+
+Vous devez maintenant concevoir la \textbf{couche GOLD},
+c’est-à-dire un \textbf{datamart décisionnel} permettant de répondre
+aux questions stratégiques du directeur.
+
+\bigskip
+
+\section*{Rappel : Questions métier du directeur}
+
+L’objectif final est de pouvoir répondre aux questions suivantes :
+
+\begin{enumerate}
+  \item Quels services sont le plus souvent en tension ?
+  \item Quel est le taux moyen d’occupation par service ?
+  \item Combien de patients sont refusés chaque semaine et pourquoi ?
+  \item La satisfaction diminue-t-elle en période de forte activité ?
+  \item Existe-t-il un lien entre présence du personnel et tension ?
+  \item Quelle est la durée moyenne de séjour par service ?
+  \item Quels services semblent les plus rentables ?
+  \item Peut-on anticiper les semaines critiques ?
+\end{enumerate}
+
+\textbf{Objectif du TP2 :}
+construire le modèle décisionnel permettant de produire ces indicateurs.
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Architecture technique}
+
+Base de données : \file{dwh/clinic\_dwh.db}
+
+Séparation des couches par préfixe :
+
+\begin{itemize}
+  \item \file{bronze\_*}
+  \item \file{silver\_*}
+  \item \file{gold\_*} (à construire)
+\end{itemize}
+
+Les modèles GOLD devront être implémentés via \textbf{dbt}
+dans un dossier \file{models/gold/}.
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 1 : Définition du fait principal et du grain}
+
+\subsection*{Objectif}
+
+Définir précisément ce que l’on souhaite analyser.
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Identifier le \textbf{fait métier principal}.
+    \begin{tcolorbox}[title=\textbf{Fait métier principal}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+    L’activité hebdomadaire d’un service de la clinique.
+    \end{tcolorbox}
+  \item Définir son \textbf{grain exact}.
+    \begin{tcolorbox}[title=\textbf{Grain choisi}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+      \begin{center}
+      1 ligne = 1 service × 1 semaine (yearweek)
+      \end{center}
+    \end{tcolorbox}
+  \item Justifier ce choix.
+    \begin{tcolorbox}[title=\textbf{Justification}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+    \begin{itemize}
+    \item Les questions du directeur portent sur la \textbf{performance hebdomadaire des services}.
+    \item Le niveau semaine permet d’analyser la tension, la saisonnalité et les pics d’activité.
+    \item Ce grain évite les problèmes de duplication liés aux données transactionnelles.
+    \item Il constitue un bon compromis entre granularité fine et lisibilité décisionnelle.
+    \end{itemize}
+    \end{tcolorbox}
+  \item Lister les mesures associées.
+    \begin{tcolorbox}[title=\textbf{Mesures associées}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+    \begin{itemize}
+    \item requests\_count
+    \item admitted\_count
+    \item refused\_count
+    \item refusal\_rate
+    \item patients\_present\_count (proxy basé sur arrival\_yearweek)
+    \item avg\_los
+    \item avg\_satisfaction
+    \item staff\_present\_count
+    \end{itemize}
+    \end{tcolorbox}
+\end{enumerate}
+
+\textbf{Indication :}
+un grain pertinent est souvent :
+\begin{center}
+\textit{1 ligne = 1 service × 1 semaine}
+\end{center}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 2 : Construction des indicateurs hebdomadaires}
+
+Aucune table agrégée hebdomadaire n’est fournie.
+Vous devez la construire à partir de la couche \textbf{silver}.
+
+\subsection*{Objectif}
+
+Créer une table décisionnelle agrégée par \textbf{service} et \textbf{yearweek}.
+
+\subsection*{Indicateurs attendus (minimum)}
+
+\begin{itemize}
+  \item Nombre de patients présents.
+  \item Nombre de demandes.
+  \item Nombre de patients admis.
+  \item Nombre de patients refusés.
+  \item Taux de refus.
+  \item Durée moyenne de séjour.
+  \item Satisfaction moyenne.
+  \item Nombre de membres du personnel présents.
+\end{itemize}
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Identifier les tables silver nécessaires.
+  \item Gérer les jointures et éventuelles duplications.
+  \item Créer un modèle dbt : \file{gold\_fact\_service\_weekly}.
+  \item Documenter les calculs effectués.
+\end{enumerate}
+
+\subsection*{Points d’attention}
+
+\begin{itemize}
+  \item Attention au grain lors des jointures.
+  \item Vérifier la cohérence : 
+  \file{patients\_refused = requests - admitted}.
+  \item Ne pas utiliser d’information future pour calculer une métrique passée.
+\end{itemize}
+
+\begin{tcolorbox}[title=\textbf{Gestion du grain et des jointures :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+\textbf{Tables silver utilisées :}
+\begin{itemize}
+\item silver\_admissions\_requests
+\item silver\_patients
+\item silver\_staff\_schedule
+\item silver\_staff
+\end{itemize}
+
+\textbf{Principe fondamental :}
+Les agrégations sont réalisées \textbf{avant les jointures}.  
+Chaque source est d’abord agrégée au grain (service × yearweek).
+
+\textbf{Pourquoi ?}
+\begin{itemize}
+\item Éviter les duplications (multiplication des lignes).
+\item Garantir la cohérence des KPI.
+\item Respecter strictement le grain défini.
+\end{itemize}
+
+\textbf{Contrôle métier :}
+On vérifie systématiquement :
+\[
+refused\_count = requests\_count - admitted\_count
+\]
+
+\end{tcolorbox}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 3 : Construction des dimensions}
+
+\subsection*{Objectif}
+
+Mettre en place un schéma en étoile.
+
+\subsection*{Dimensions minimales attendues}
+
+\begin{itemize}
+  \item \file{gold\_dim\_service}
+  \item \file{gold\_dim\_date} (ou week)
+  \item \file{gold\_dim\_staff} (si pertinent)
+\end{itemize}
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Définir les attributs de chaque dimension.
+  \item Identifier les clés primaires.
+  \item Relier les dimensions à la table de faits.
+  \item Justifier les cardinalités.
+\end{enumerate}
+
+\begin{tcolorbox}[title=\textbf{Schéma en étoile proposé :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+\textbf{Table de faits :}
+\begin{itemize}
+\item gold\_fact\_service\_weekly
+\end{itemize}
+
+\textbf{Dimensions :}
+\begin{itemize}
+\item gold\_dim\_service (1 → n)
+\item gold\_dim\_week (1 → n)
+\item gold\_dim\_staff (optionnelle pour analyses RH)
+\end{itemize}
+
+\textbf{Cardinalités :}
+\begin{itemize}
+\item 1 service → plusieurs lignes de faits
+\item 1 semaine → plusieurs lignes de faits
+\end{itemize}
+
+Ce modèle respecte les principes du \textbf{star schema} :
+\begin{itemize}
+\item table centrale contenant les mesures,
+\item dimensions descriptives autour,
+\item simplicité pour les outils BI.
+\end{itemize}
+
+\end{tcolorbox}
+
+\begin{tcolorbox}[title=\textbf{Pourquoi ne pas avoir créé de dimension patient ?}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+Il est volontaire que le modèle GOLD ne contienne pas de dimension \texttt{patient}.
+
+\textbf{Justification :}
+
+\begin{itemize}
+\item Le grain de la table de faits est :  
+\begin{center}
+1 ligne = 1 service × 1 semaine
+\end{center}
+
+\item À ce niveau d’agrégation, le patient n’est plus une entité d’analyse individuelle, mais une contribution à un indicateur agrégé (comptage, moyenne, etc.).
+
+\item Introduire une dimension patient impliquerait :
+  \begin{itemize}
+  \item soit de descendre le grain au niveau \textit{patient × semaine},
+  \item soit de créer un autre datamart orienté analyse individuelle.
+  \end{itemize}
+
+\item Les questions du directeur portent sur la \textbf{performance des services}, pas sur le suivi individuel des patients.
+\end{itemize}
+
+\textbf{Conclusion :}  
+Dans ce datamart, le patient est une \textbf{mesure agrégée}, pas une dimension d’analyse.
+
+\end{tcolorbox}
+
+\begin{tcolorbox}[colback=blue!5, colframe=blue!60, title=\textbf{Commentaire}]
+Un modèle décisionnel doit être conçu en fonction des questions métier.
+On ne modélise pas toutes les entités disponibles,
+mais uniquement celles pertinentes au niveau d’analyse choisi.
+\end{tcolorbox}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 4 : Implémentation GOLD avec dbt}
+
+\subsection*{Consignes}
+
+\begin{enumerate}
+  \item Implémenter les modèles GOLD dans \file{models/gold/}.
+  \item Matérialisation en tables.
+  \item Documenter les modèles.
+\end{enumerate}
+
+\subsection*{Tests obligatoires}
+
+\begin{itemize}
+  \item \file{unique} + \file{not\_null} sur les PK.
+  \item \file{relationships} entre faits et dimensions.
+  \item Test métier simple sur un KPI.
+\end{itemize}
+
+\subsection*{Commandes attendues}
+
+\begin{lstlisting}
+dbt run  --select gold
+dbt test --select gold
+\end{lstlisting}
+
+\begin{tcolorbox}[title=\textbf{Stratégie de tests dbt :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+\textbf{Tests techniques :}
+\begin{itemize}
+\item unique + not\_null sur les clés primaires.
+\item relationships entre faits et dimensions.
+\end{itemize}
+
+\textbf{Test métier :}
+Vérification de la cohérence d’un KPI :
+\[
+refused = requests - admitted
+\]
+
+Ces tests garantissent :
+\begin{itemize}
+\item l’intégrité référentielle,
+\item la cohérence des indicateurs,
+\item la fiabilité du datamart.
+\end{itemize}
+
+\end{tcolorbox}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 5 : Historisation et volumétrie}
+
+\subsection*{Réflexion}
+
+\begin{enumerate}
+  \item Estimer la volumétrie annuelle.
+    \begin{tcolorbox}[title=\textbf{Volumétrie estimée :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+    La volumétrie d’un datamart en étoile est principalement portée par la
+    \textbf{table de faits}.
+
+    Grain choisi :
+    \[
+    1\ service \times 1\ semaine
+    \]
+
+    Avec 4 services :
+    \[
+    4 \times 52 = 208\ lignes/an
+    \]
+
+    Même sur 10 ans :
+    \[
+    208 \times 10 = 2080\ lignes
+    \]
+
+    La couche GOLD reste donc extrêmement peu volumineuse.
+
+    Les dimensions (service, week, staff) évoluent très peu
+    et n’ont pas d’impact significatif sur la volumétrie globale.
+    \end{tcolorbox}
+
+    \begin{tcolorbox}[colback=blue!5, colframe=blue!60, title=\textbf{Commentaire enseignant}]
+    La volumétrie dépend directement du grain choisi.
+    Si le grain avait été :
+    1 ligne = 1 patient × 1 jour,
+    la volumétrie aurait été plusieurs ordres de grandeur plus élevée.
+
+    Le choix du grain impacte donc :
+    \begin{itemize}
+    \item la taille des tables,
+    \item les performances,
+    \item la complexité du modèle.
+    \end{itemize}
+    \end{tcolorbox}
+
+  \item Identifier une dimension susceptible d’évoluer.
+    \begin{tcolorbox}[title=\textbf{Dimension susceptible d’évoluer :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+    La dimension staff (changement de rôle, de service).
+    \end{tcolorbox}
+  \item Proposer une stratégie SCD (Type 1 ou Type 2). Justifier le choix.
+    \begin{tcolorbox}[title=\textbf{Stratégie SCD proposée et justification :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+    \textbf{Dimension concernée :} gold\_dim\_staff.
+
+    Un Slowly Changing Dimension (SCD) permet de gérer les évolutions
+    des attributs descriptifs d’une dimension dans le temps.
+
+    \textbf{Deux stratégies principales :}
+
+    \textbf{SCD Type 1 :}
+    \begin{itemize}
+    \item Les valeurs sont écrasées lors d’un changement.
+    \item Pas d’historique conservé.
+    \item Modèle simple et peu volumineux.
+    \item Adapté si l’historique n’a pas d’intérêt analytique.
+    \end{itemize}
+
+    \textbf{SCD Type 2 :}
+    \begin{itemize}
+    \item Création d’une nouvelle ligne lors d’un changement.
+    \item Ajout de colonnes de validité (valid\_from, valid\_to, is\_current).
+    \item Conservation complète de l’historique.
+    \item Permet des analyses temporelles fiables.
+    \end{itemize}
+
+    \textbf{Choix recommandé : SCD Type 2}
+
+    Justification :
+    \begin{itemize}
+    \item Un membre du personnel peut changer de rôle ou de service.
+    \item Le directeur peut vouloir analyser l’impact organisationnel :
+    \begin{itemize}
+    \item Le taux de refus a-t-il augmenté après un changement d’équipe ?
+    \item La satisfaction a-t-elle évolué après une réorganisation ?
+    \end{itemize}
+    \item Sans historisation, ces analyses seraient biaisées.
+    \end{itemize}
+
+    Dans le cadre pédagogique du TP2 (volumétrie faible et complexité limitée),
+    un SCD Type 1 peut être toléré pour simplifier l’implémentation.
+    Cependant, d’un point de vue analytique et architectural,
+    le SCD Type 2 est le choix le plus robuste.
+
+    \end{tcolorbox}
+
+    \begin{tcolorbox}[colback=blue!5, colframe=blue!60, title=\textbf{Commentaire}]
+    Le choix d’un SCD Type 1 en SILVER simplifie le modèle,
+    mais limite les capacités analytiques.
+
+    Dans un contexte réel, la décision d’historiser (Type 2)
+    dépend du besoin métier et du coût de complexité supplémentaire.
+    \end{tcolorbox}
+\end{enumerate}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 6 : Exploitation décisionnelle (Dashboard BI)}
+
+\subsection*{Objectif}
+
+Valider la cohérence du datamart GOLD en construisant un premier
+tableau de bord décisionnel permettant de répondre aux questions
+du directeur.
+
+\subsection*{Outil recommandé}
+
+Power BI (ou outil équivalent : Tableau, Superset, etc.).
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Se connecter à la base \file{clinic\_dwh.db}.
+  \item Importer uniquement les tables \file{gold\_*}.
+  \item Vérifier les relations entre tables (PK/FK).
+\end{enumerate}
+
+\subsection*{KPI minimums attendus}
+
+Construire au minimum les indicateurs suivants :
+
+\begin{itemize}
+  \item Taux d’occupation moyen par service.
+  \item Nombre de patients refusés par semaine.
+  \item Taux de refus.
+  \item Satisfaction moyenne.
+  \item Durée moyenne de séjour.
+  \item Nombre de membres du personnel présents.
+\end{itemize}
+
+Pour chaque KPI, préciser :
+
+\begin{itemize}
+  \item la définition métier,
+  \item la formule utilisée,
+  \item le niveau d’agrégation.
+\end{itemize}
+
+\subsection*{Structure attendue du dashboard}
+
+Créer au minimum :
+
+\begin{itemize}
+  \item Une page \textbf{Pilotage global} :
+  \begin{itemize}
+    \item KPI principaux (cartes),
+    \item évolution temporelle,
+    \item filtre par service.
+  \end{itemize}
+  \item Une page \textbf{Analyse détaillée} :
+  \begin{itemize}
+    \item comparaison entre services,
+    \item focus sur les refus et la satisfaction,
+    \item possibilité de filtrer par période.
+  \end{itemize}
+\end{itemize}
+
+\subsection*{Analyse attendue}
+
+Rédiger une courte analyse (10 lignes environ) répondant à au moins
+\textbf{3 questions du directeur} à partir du dashboard construit.
+
+\subsection*{Livrables attendus}
+
+\begin{itemize}
+  \item Fichier Power BI (\file{.pbix}) ou captures d’écran.
+  \item Liste des KPI définis (avec formules).
+  \item Analyse rédigée.
+\end{itemize}
+
+\begin{tcolorbox}[title=\textbf{Validation décisionnelle via Power BI :}, colback=gray!5, colframe=black, boxrule=0.8pt, arc=2mm]
+
+\textbf{Objectif :}
+Vérifier que le datamart permet réellement de répondre
+aux questions stratégiques.
+
+\textbf{Bonnes pratiques :}
+\begin{itemize}
+\item Importer uniquement les tables gold\_*.
+\item Vérifier le schéma en étoile.
+\item Créer des mesures DAX (pas utiliser directement les colonnes).
+\item Centraliser les mesures dans une table dédiée.
+\end{itemize}
+
+\textbf{Exemples d’analyses attendues :}
+\begin{itemize}
+\item Identification des services en tension.
+\item Corrélation entre staff et taux de refus.
+\item Évolution de la satisfaction en période de forte activité.
+\end{itemize}
+
+Si le dashboard répond clairement à au moins 3 questions du directeur,
+le modèle GOLD est considéré comme valide.
+
+\end{tcolorbox}
+
+\end{document}

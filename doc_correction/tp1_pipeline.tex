@@ -1,0 +1,393 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Variables du TP
+\newcommand{\TPModule}{Datawarehouse}
+\newcommand{\TPNumero}{1}
+\newcommand{\TPKeywords}{data engineering, ingestion, dbt, bronze, silver}
+\newcommand{\TPSujet}{Mise en place du pipeline décisionnel (CORRECTION)}
+\newcommand{\TPTheme}{Clinique}
+\input{preamble}
+
+\begin{document}
+\TPFrontPage
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Contexte métier}
+
+Vous intervenez pour une clinique privée.
+
+Le directeur souhaite mieux piloter l’activité de ses services :
+\begin{itemize}
+  \item tension dans certains services,
+  \item refus de patients,
+  \item impact sur la satisfaction,
+  \item gestion du personnel,
+  \item rentabilité des lits.
+\end{itemize}
+
+Les données existent, mais elles proviennent de plusieurs systèmes opérationnels
+et ne sont pas encore intégrées dans une architecture décisionnelle.
+
+Votre mission consiste à mettre en place les \textbf{fondations du pipeline de données}
+afin de permettre, dans un second temps, la production d’indicateurs décisionnels.
+
+\bigskip
+
+\section*{Questions stratégiques du directeur (fil rouge)}
+
+À terme, le directeur souhaite pouvoir répondre aux questions suivantes :
+
+\begin{enumerate}
+  \item Quels services sont le plus souvent en tension ?
+  \item Quel est le taux moyen d’occupation par service ?
+  \item Combien de patients sont refusés chaque semaine et pourquoi ?
+  \item La satisfaction diminue-t-elle en période de forte activité ?
+  \item Existe-t-il un lien entre présence du personnel et tension ?
+  \item Quelle est la durée moyenne de séjour par service ?
+  \item Quels services semblent les plus rentables ?
+  \item Peut-on anticiper les semaines critiques ?
+\end{enumerate}
+
+\textbf{Important :}
+Ce TP ne vise pas encore à répondre à ces questions.
+Il vise à construire les \textbf{fondations techniques} permettant d’y répondre dans le TP2.
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Objectifs pédagogiques}
+
+Ce TP a pour objectif de mettre en pratique :
+
+\begin{itemize}
+  \item le rôle des couches \textbf{RAW, BRONZE, SILVER},
+  \item l’ingestion reproductible de données,
+  \item la structuration d’un pipeline ELT,
+  \item l’utilisation de \textbf{dbt} pour transformer les données,
+  \item la mise en place de tests de qualité,
+  \item le principe du chargement incrémental.
+\end{itemize}
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Jeux de données fournis}
+
+Les fichiers suivants sont disponibles dans le dossier \file{data/} :
+
+\begin{itemize}
+  \item \file{patients.csv}
+  \item \file{staff.csv}
+  \item \file{staff\_schedule.csv}
+  \item \file{admissions\_requests.csv}
+\end{itemize}
+
+Ces fichiers constituent la \textbf{couche RAW}.
+
+\bigskip
+
+\textbf{Important :}
+Aucune table agrégée hebdomadaire n’est fournie.
+La construction d’indicateurs sera réalisée dans le TP2.
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 1 : Exploration et Data Profiling}
+
+\subsection*{Objectif}
+
+Comprendre la structure, le contenu et les spécificités des données sources
+avant toute industrialisation.
+
+\subsection*{Consignes}
+
+Cette étape peut être réalisée dans un \textbf{notebook}.
+
+\begin{enumerate}
+  \item Charger les différents fichiers CSV.
+  \item Analyser :
+  \begin{itemize}
+    \item types de colonnes,
+    \item valeurs manquantes,
+    \item formats de dates,
+    \item cohérence des identifiants,
+    \item distributions simples.
+  \end{itemize}
+  \item Identifier les relations potentielles entre les tables.
+  \item Déterminer le grain naturel de chaque fichier.
+  \item Construire un dictionnaire de données synthétique.
+\end{enumerate}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 2 : Mise en place de la couche BRONZE}
+
+\subsection*{Objectif}
+
+Mettre en place un stockage brut, traçable et reproductible des données sources.
+
+\subsection{Réflexion}
+
+\begin{enumerate}
+  \item Expliquer le rôle de la couche BRONZE dans une architecture médaillon.
+    \begin{tcolorbox}[title=\textbf{Correction — Rôle de la couche BRONZE}, colback=gray!5, colframe=black]
+    La couche \textbf{BRONZE} constitue la première couche de stockage dans une architecture médaillon (Bronze / Silver / Gold).
+    Elle a pour objectif de \textbf{stocker les données telles qu’elles sont reçues depuis les systèmes sources}, sans transformation métier.
+
+    Son rôle principal est :
+    \begin{itemize}
+      \item garantir la \textbf{traçabilité} (date d’ingestion, source, batch),
+      \item permettre la \textbf{reproductibilité} des traitements,
+      \item conserver l’\textbf{historique complet} des données,
+      \item servir de base fiable pour les transformations ultérieures.
+    \end{itemize}
+
+    Elle ne contient aucune logique décisionnelle (pas d’agrégation, pas de calcul métier).
+    \end{tcolorbox}
+  \item Pourquoi ne faut-il pas appliquer de logique métier à ce stade ?
+    \begin{tcolorbox}[title=\textbf{Correction — Absence de logique métier en BRONZE}, colback=gray!5, colframe=black]
+    Appliquer une logique métier dès la couche BRONZE présente plusieurs risques :
+
+    \begin{itemize}
+      \item perte d’information d’origine,
+      \item difficulté à corriger une transformation erronée,
+      \item impossibilité de rejouer les traitements correctement,
+      \item confusion entre stockage brut et modèle décisionnel.
+    \end{itemize}
+
+    La couche BRONZE doit rester une \textbf{copie fidèle des données sources}.
+    Toute transformation doit être effectuée en couche SILVER ou GOLD.
+    \end{tcolorbox}
+  \item Quelle différence entre RAW et BRONZE ?
+    \begin{tcolorbox}[title=\textbf{Correction — Différence RAW vs BRONZE}, colback=gray!5, colframe=black]
+    La couche \textbf{RAW} correspond aux fichiers ou flux d’origine (CSV, API, exports applicatifs).
+
+    La couche \textbf{BRONZE} correspond aux données RAW \textbf{ingérées dans le système décisionnel},
+    avec ajout de métadonnées techniques :
+    \begin{itemize}
+      \item identifiant de batch,
+      \item timestamp d’ingestion,
+      \item nom du fichier source.
+    \end{itemize}
+
+    RAW = stockage externe non contrôlé.\\
+    BRONZE = stockage interne historisé et traçable.
+    \end{tcolorbox}
+\end{enumerate}
+
+\subsection{Implémentation}
+
+\begin{enumerate}
+  \item Créer une base SQLite : \file{dwh/clinic\_dwh.db}.
+  \item Écrire un script Python \file{scripts/ingest\_bronze.py} :
+  \begin{itemize}
+    \item lecture des fichiers CSV depuis \file{data/},
+    \item chargement dans SQLite,
+    \item une table par fichier.
+  \end{itemize}
+\end{enumerate}
+
+\subsection*{Règles d’ingestion}
+
+\begin{itemize}
+  \item Préfixe des tables : \file{bronze\_}\\\textit{Note : SQLite ne gérant pas nativement les schémas (bronze, silver, gold), la séparation des couches sera réalisée par convention de nommage.}
+  \item Aucune transformation métier.
+  \item Ajout des colonnes techniques :
+  \begin{itemize}
+    \item \file{batch\_id}
+    \item \file{ingestion\_ts}
+    \item \file{source\_file\_name}
+  \end{itemize}
+\end{itemize}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 3 : Transformation vers la couche SILVER (ELT avec dbt)}
+
+\subsection*{Objectif}
+
+Produire des tables propres, typées et cohérentes,
+prêtes pour une modélisation décisionnelle.
+
+\subsection{Réflexion ETL vs ELT}
+
+\begin{enumerate}
+  \item Identifier au moins trois transformations nécessaires.
+    \begin{tcolorbox}[title=\textbf{Correction — Transformations nécessaires}, colback=gray!5, colframe=black]
+    Plusieurs transformations sont nécessaires avant exploitation décisionnelle :
+
+    \begin{itemize}
+      \item Conversion des dates (format \texttt{dd/mm/yyyy} vers \texttt{YYYY-MM-DD}),
+      \item Conversion des nombres avec virgule (\texttt{75,6} → \texttt{75.6}),
+      \item Typage des indicateurs (INTEGER, REAL),
+      \item Normalisation des valeurs catégorielles (\texttt{ICU} → \texttt{icu}),
+      \item Création d’un identifiant technique pour le personnel.
+    \end{itemize}
+
+    Ces transformations sont réalisées en couche SILVER.
+    \end{tcolorbox}
+  \item Décrire une approche ETL.
+    \begin{tcolorbox}[title=\textbf{Correction — Approche ETL}, colback=gray!5, colframe=black]
+    Dans une approche ETL (Extract – Transform – Load) :
+
+    \begin{enumerate}
+      \item Les données sont extraites des systèmes sources.
+      \item Les transformations sont réalisées \textbf{avant le chargement} (dans un outil externe).
+      \item Les données transformées sont ensuite chargées dans l’entrepôt.
+    \end{enumerate}
+
+    Les traitements sont effectués en amont du stockage.
+    \end{tcolorbox}
+  \item Décrire une approche ELT.
+    \begin{tcolorbox}[title=\textbf{Correction — Approche ELT}, colback=gray!5, colframe=black]
+    Dans une approche ELT (Extract – Load – Transform) :
+
+    \begin{enumerate}
+      \item Les données sont extraites.
+      \item Elles sont d’abord chargées telles quelles dans l’entrepôt (BRONZE).
+      \item Les transformations sont effectuées directement dans la base (SILVER via dbt).
+    \end{enumerate}
+
+    Cette approche est particulièrement adaptée aux architectures modernes et aux outils analytiques.
+    \end{tcolorbox}
+  \item Comparer les deux approches :
+  flexibilité, traçabilité, performance, maintenabilité.
+    \begin{tcolorbox}[title=\textbf{Correction — Comparaison ETL vs ELT}, colback=gray!5, colframe=black]
+    \begin{itemize}
+      \item \textbf{Flexibilité :} ELT est plus flexible (transformations versionnées en SQL).
+      \item \textbf{Traçabilité :} ELT permet de conserver le brut et d’auditer les transformations.
+      \item \textbf{Performance :} ELT exploite la puissance du moteur de base.
+      \item \textbf{Maintenabilité :} ELT est souvent plus modulaire (ex : dbt).
+    \end{itemize}
+
+    Dans ce TP, l’approche retenue est clairement ELT.
+    \end{tcolorbox}
+  
+\end{enumerate}
+
+\subsection{Implémentation avec dbt}
+
+\begin{enumerate}
+  \item Configurer dbt pour utiliser \file{clinic\_dwh.db}.
+  \item Créer un modèle par table BRONZE :
+  \begin{itemize}
+    \item \file{silver\_patients}
+    \item \file{silver\_staff}
+    \item \file{silver\_staff\_schedule}
+    \item \file{silver\_admissions\_requests}
+  \end{itemize}
+  \item Matérialiser les modèles en tables.
+\end{enumerate}
+
+\subsection*{Transformations attendues}
+
+\begin{itemize}
+  \item Typage correct des colonnes.
+  \item Conversion des dates.
+  \item Conversion des champs numériques avec virgule.
+  \item Nettoyage simple des chaînes.
+  \item Conservation des colonnes techniques.
+  \item Création d’un identifiant technique (clé primaire) pour le personnel
+  afin d’éviter l’utilisation directe du \file{staff\_name} comme clé.
+\end{itemize}
+
+\subsection*{Tests de qualité}
+
+Mettre en place des tests dbt :
+
+\begin{itemize}
+  \item \file{not\_null} sur les identifiants.
+  \item \file{unique} sur les clés primaires.
+  \item \file{accepted\_values} sur certaines colonnes (ex : accepted, role).
+\end{itemize}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 4 : Chargement incrémental}
+
+\subsection*{Réflexion}
+
+\begin{enumerate}
+  \item Quels risques existe-t-il si l’on recharge entièrement les données à chaque exécution ?
+    \begin{tcolorbox}[title=\textbf{Correction — Risques d’un rechargement complet}, colback=gray!5, colframe=black]
+    Recharger entièrement les données à chaque exécution peut entraîner :
+
+    \begin{itemize}
+      \item duplication des enregistrements,
+      \item perte d’historique,
+      \item dégradation des performances,
+      \item indisponibilité temporaire des tables,
+      \item consommation excessive de ressources.
+    \end{itemize}
+
+    Un chargement incrémental permet de limiter ces risques.
+    \end{tcolorbox}
+  \item Quelle colonne peut servir de watermark ?
+    \begin{tcolorbox}[title=\textbf{Correction — Watermark}, colback=gray!5, colframe=black]
+    Une colonne de type date, timestamp ou identifiant séquentiel peut servir de \textbf{watermark}.\\
+    Dans ce TP, le \texttt{batch\_id} et la clé métier (ex : \texttt{patient\_id})
+    permettent d’identifier les nouvelles données.
+    \end{tcolorbox}
+  \item Comment gérer la mise à jour d’un enregistrement existant ?
+    \begin{tcolorbox}[title=\textbf{Correction — Gestion des mises à jour}, colback=gray!5, colframe=black]
+    Deux stratégies sont possibles :
+
+    \begin{itemize}
+      \item \textbf{SCD Type 1 :} écraser la valeur précédente.
+      \item \textbf{SCD Type 2 :} conserver l’historique des versions.
+    \end{itemize}
+
+    Dans ce TP :
+    \begin{itemize}
+      \item La couche BRONZE conserve l’historique complet (append).
+      \item La couche SILVER sélectionne la version la plus récente
+      via une fonction analytique (\texttt{row\_number()}).
+    \end{itemize}
+    \end{tcolorbox}
+\end{enumerate}
+
+\subsection*{Implémentation}
+
+Adapter le script d’ingestion afin :
+
+\begin{itemize}
+  \item de permettre plusieurs batchs,
+  \item d’identifier les nouveaux enregistrements,
+  \item de conserver l’historique en bronze.
+\end{itemize}
+
+Expliquer comment la couche SILVER peut permettre de ne conserver que la version la plus récente.
+  \begin{tcolorbox}[title=\textbf{Correction — Version la plus récente en SILVER}, colback=gray!5, colframe=black]
+  La couche SILVER applique une fonction analytique :
+
+  \begin{center}
+  \texttt{row\_number() over (partition by clé\_métier order by batch\_id desc)}
+  \end{center}
+
+  Cette fonction classe les différentes versions d’un enregistrement
+  de la plus récente à la plus ancienne.
+  En sélectionnant uniquement les lignes où \texttt{rn = 1},
+  on conserve uniquement la version la plus récente.
+
+  La couche BRONZE reste historisée,
+  la couche SILVER représente un \textbf{snapshot courant}.
+  \end{tcolorbox}
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Conclusion}
+
+À l’issue de ce TP, vous devez disposer :
+
+\begin{itemize}
+  \item d’une couche BRONZE historisée,
+  \item d’une couche SILVER propre et testée,
+  \item d’un pipeline ELT reproductible.
+\end{itemize}
+
+Ces éléments serviront de base à la construction des indicateurs décisionnels
+et du dashboard dans le TP2.
+
+\end{document}

@@ -1,0 +1,258 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Variables du TP
+\newcommand{\TPModule}{Datawarehouse}
+\newcommand{\TPNumero}{1}
+\newcommand{\TPKeywords}{data engineering, ingestion, dbt, bronze, silver}
+\newcommand{\TPSujet}{Mise en place du pipeline décisionnel}
+\newcommand{\TPTheme}{Clinique}
+\input{preamble}
+
+\begin{document}
+\TPFrontPage
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Contexte métier}
+
+Vous intervenez pour une clinique privée.
+
+Le directeur souhaite mieux piloter l’activité de ses services :
+\begin{itemize}
+  \item tension dans certains services,
+  \item refus de patients,
+  \item impact sur la satisfaction,
+  \item gestion du personnel,
+  \item rentabilité des lits.
+\end{itemize}
+
+Les données existent, mais elles proviennent de plusieurs systèmes opérationnels
+et ne sont pas encore intégrées dans une architecture décisionnelle.
+
+Votre mission consiste à mettre en place les \textbf{fondations du pipeline de données}
+afin de permettre, dans un second temps, la production d’indicateurs décisionnels.
+
+\bigskip
+
+\section*{Questions stratégiques du directeur (fil rouge)}
+
+À terme, le directeur souhaite pouvoir répondre aux questions suivantes :
+
+\begin{enumerate}
+  \item Quels services sont le plus souvent en tension ?
+  \item Quel est le taux moyen d’occupation par service ?
+  \item Combien de patients sont refusés chaque semaine et pourquoi ?
+  \item La satisfaction diminue-t-elle en période de forte activité ?
+  \item Existe-t-il un lien entre présence du personnel et tension ?
+  \item Quelle est la durée moyenne de séjour par service ?
+  \item Quels services semblent les plus rentables ?
+  \item Peut-on anticiper les semaines critiques ?
+\end{enumerate}
+
+\textbf{Important :}
+Ce TP ne vise pas encore à répondre à ces questions.
+Il vise à construire les \textbf{fondations techniques} permettant d’y répondre dans le TP2.
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Objectifs pédagogiques}
+
+Ce TP a pour objectif de mettre en pratique :
+
+\begin{itemize}
+  \item le rôle des couches \textbf{RAW, BRONZE, SILVER},
+  \item l’ingestion reproductible de données,
+  \item la structuration d’un pipeline ELT,
+  \item l’utilisation de \textbf{dbt} pour transformer les données,
+  \item la mise en place de tests de qualité,
+  \item le principe du chargement incrémental.
+\end{itemize}
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Jeux de données fournis}
+
+Les fichiers suivants sont disponibles dans le dossier \file{data/} :
+
+\begin{itemize}
+  \item \file{patients.csv}
+  \item \file{staff.csv}
+  \item \file{staff\_schedule.csv}
+  \item \file{admissions\_requests.csv}
+\end{itemize}
+
+Ces fichiers constituent la \textbf{couche RAW}.
+
+\bigskip
+
+\textbf{Important :}
+Aucune table agrégée hebdomadaire n’est fournie.
+La construction d’indicateurs sera réalisée dans le TP2.
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 1 : Exploration et Data Profiling}
+
+\subsection*{Objectif}
+
+Comprendre la structure, le contenu et les spécificités des données sources
+avant toute industrialisation.
+
+\subsection*{Consignes}
+
+Cette étape peut être réalisée dans un \textbf{notebook}.
+
+\begin{enumerate}
+  \item Charger les différents fichiers CSV.
+  \item Analyser :
+  \begin{itemize}
+    \item types de colonnes,
+    \item valeurs manquantes,
+    \item formats de dates,
+    \item cohérence des identifiants,
+    \item distributions simples.
+  \end{itemize}
+  \item Identifier les relations potentielles entre les tables.
+  \item Déterminer le grain naturel de chaque fichier.
+  \item Construire un dictionnaire de données synthétique.
+\end{enumerate}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 2 : Mise en place de la couche BRONZE}
+
+\subsection*{Objectif}
+
+Mettre en place un stockage brut, traçable et reproductible des données sources.
+
+\subsection{Réflexion}
+
+\begin{enumerate}
+  \item Expliquer le rôle de la couche BRONZE dans une architecture médaillon.
+  \item Pourquoi ne faut-il pas appliquer de logique métier à ce stade ?
+  \item Quelle différence entre RAW et BRONZE ?
+\end{enumerate}
+
+\subsection{Implémentation}
+
+\begin{enumerate}
+  \item Créer une base SQLite : \file{dwh/clinic\_dwh.db}.
+  \item Écrire un script Python \file{scripts/ingest\_bronze.py} :
+  \begin{itemize}
+    \item lecture des fichiers CSV depuis \file{data/},
+    \item chargement dans SQLite,
+    \item une table par fichier.
+  \end{itemize}
+\end{enumerate}
+
+\subsection*{Règles d’ingestion}
+
+\begin{itemize}
+  \item Préfixe des tables : \file{bronze\_}\\\textit{Note : SQLite ne gérant pas nativement les schémas (bronze, silver, gold), la séparation des couches sera réalisée par convention de nommage.}
+  \item Aucune transformation métier.
+  \item Ajout des colonnes techniques :
+  \begin{itemize}
+    \item \file{batch\_id}
+    \item \file{ingestion\_ts}
+    \item \file{source\_file\_name}
+  \end{itemize}
+\end{itemize}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 3 : Transformation vers la couche SILVER (ELT avec dbt)}
+
+\subsection*{Objectif}
+
+Produire des tables propres, typées et cohérentes,
+prêtes pour une modélisation décisionnelle.
+
+\subsection{Réflexion ETL vs ELT}
+
+\begin{enumerate}
+  \item Identifier au moins trois transformations nécessaires.
+  \item Décrire une approche ETL.
+  \item Décrire une approche ELT.
+  \item Comparer les deux approches :
+  flexibilité, traçabilité, performance, maintenabilité.
+\end{enumerate}
+
+\subsection{Implémentation avec dbt}
+
+\begin{enumerate}
+  \item Configurer dbt pour utiliser \file{clinic\_dwh.db}.
+  \item Créer un modèle par table BRONZE :
+  \begin{itemize}
+    \item \file{silver\_patients}
+    \item \file{silver\_staff}
+    \item \file{silver\_staff\_schedule}
+    \item \file{silver\_admissions\_requests}
+  \end{itemize}
+  \item Matérialiser les modèles en tables.
+\end{enumerate}
+
+\subsection*{Transformations attendues}
+
+\begin{itemize}
+  \item Typage correct des colonnes.
+  \item Conversion des dates.
+  \item Conversion des champs numériques avec virgule.
+  \item Nettoyage simple des chaînes.
+  \item Conservation des colonnes techniques.
+  \item Création d’un identifiant technique (clé primaire) pour le personnel
+  afin d’éviter l’utilisation directe du \file{staff\_name} comme clé.
+\end{itemize}
+
+\subsection*{Tests de qualité}
+
+Mettre en place des tests dbt :
+
+\begin{itemize}
+  \item \file{not\_null} sur les identifiants.
+  \item \file{unique} sur les clés primaires.
+  \item \file{accepted\_values} sur certaines colonnes (ex : accepted, role).
+\end{itemize}
+
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 4 : Chargement incrémental}
+
+\subsection*{Réflexion}
+
+\begin{enumerate}
+  \item Quels risques existe-t-il si l’on recharge entièrement les données à chaque exécution ?
+  \item Quelle colonne peut servir de watermark ?
+  \item Comment gérer la mise à jour d’un enregistrement existant ?
+\end{enumerate}
+
+\subsection*{Implémentation}
+
+Adapter le script d’ingestion afin :
+
+\begin{itemize}
+  \item de permettre plusieurs batchs,
+  \item d’identifier les nouveaux enregistrements,
+  \item de conserver l’historique en bronze.
+\end{itemize}
+
+Expliquer comment la couche SILVER peut permettre de ne conserver que la version la plus récente.
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Conclusion}
+
+À l’issue de ce TP, vous devez disposer :
+
+\begin{itemize}
+  \item d’une couche BRONZE historisée,
+  \item d’une couche SILVER propre et testée,
+  \item d’un pipeline ELT reproductible.
+\end{itemize}
+
+Ces éléments serviront de base à la construction des indicateurs décisionnels
+et du dashboard dans le TP2.
+
+\end{document}

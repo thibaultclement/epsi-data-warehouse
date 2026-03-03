@@ -1,0 +1,116 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Variables du TP
+\newcommand{\TPModule}{Datawarehouse}
+\newcommand{\TPNumero}{3}
+\newcommand{\TPKeywords}{datawarehouse, industrialisation, IA, sécurité, API, orchestration}
+\newcommand{\TPSujet}{Exploitation avancée du DWH (INFRA)}
+\newcommand{\TPTheme}{Clinique}
+\input{preamble}
+
+\begin{document}
+\TPFrontPage
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Contexte}
+
+Lors des TP précédents, vous avez :
+
+\begin{itemize}
+  \item construit un pipeline de données (RAW → BRONZE → SILVER),
+  \item modélisé un datamart décisionnel (couche GOLD),
+  \item réalisé un premier tableau de bord répondant aux questions du directeur.
+\end{itemize}
+
+La clinique souhaite désormais aller plus loin et professionnaliser son système.
+
+\section*{Architecture existante}
+
+Base de données : \file{dwh/clinic\_dwh.db}
+
+Couches :
+
+\begin{itemize}
+  \item \file{bronze\_*}
+  \item \file{silver\_*}
+  \item \file{gold\_*}
+\end{itemize}
+
+Votre travail doit s'appuyer exclusivement sur la couche GOLD validée au TP2.
+
+% =============================================================================================
+
+\section*{Objectif}
+
+Formaliser l’architecture actuelle et proposer une vision cible.
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Réaliser un schéma d’architecture globale du système :
+  \begin{itemize}
+    \item sources,
+    \item ingestion,
+    \item dbt,
+    \item base SQLite,
+    \item outil BI.
+  \end{itemize}
+  \item Identifier 3 limites actuelles du système.
+  \item Proposer 3 améliorations possibles.
+\end{enumerate}
+
+\subsection*{Livrable}
+
+\begin{itemize}
+  \item Diagramme d’architecture (draw.io ou équivalent).
+  \item Analyse rédigée (10 lignes).
+\end{itemize}
+
+% =============================================================================================
+\section*{Parcours INFRA}
+
+\subsection*{Objectif}
+
+Industrialiser le pipeline de données.
+
+\subsection*{Travail demandé}
+
+\textbf{1. Conteneurisation}
+
+\begin{itemize}
+  \item Conteneuriser :
+  \begin{itemize}
+    \item ingestion Python,
+    \item dbt,
+    \item base SQLite.
+  \end{itemize}
+\end{itemize}
+
+\textbf{2. Orchestration}
+
+\begin{itemize}
+  \item Mettre en place un DAG Airflow :
+  \begin{itemize}
+    \item ingest\_bronze
+    \item dbt\_run
+    \item dbt\_test
+  \end{itemize}
+\end{itemize}
+
+\textbf{3. Monitoring}
+
+\begin{itemize}
+  \item Ajouter gestion des logs.
+  \item Proposer une stratégie d’alerte.
+\end{itemize}
+
+\subsection*{Livrables}
+
+\begin{itemize}
+  \item docker-compose.
+  \item DAG Airflow.
+  \item Schéma d’architecture cible.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,11 @@
+dbt_clinic:
+  target: dev
+  outputs:
+    dev:
+      type: sqlite
+      threads: 1
+      database: "clinic_dwh"
+      schema: "main"
+      schema_directory: "../dwh"
+      schemas_and_paths:
+        main: "../dwh/clinic_dwh.db"

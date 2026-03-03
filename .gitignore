@@ -51,3 +51,8 @@ dbt_clinic/package-lock.yml
 *.bcf
 *.blg
 *.run.xml
+
+# -----------------------
+# Divers
+# -----------------------
+*.zip

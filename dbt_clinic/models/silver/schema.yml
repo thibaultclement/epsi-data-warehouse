@@ -1,0 +1,83 @@
+version: 2
+
+models:
+  - name: silver_patients
+    columns:
+      - name: patient_id
+        tests:
+          - not_null
+          - unique
+
+      - name: request_id
+        tests:
+          - not_null
+
+      - name: service
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['icu', 'emergency', 'general_medicine', 'surgery']
+
+  - name: silver_staff
+    columns:
+      - name: staff_id
+        tests:
+          - not_null
+          - unique
+
+      - name: staff_name
+        tests:
+          - not_null
+
+      - name: role
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['doctor', 'nurse', 'nursing_assistant']
+
+      - name: service
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['icu', 'emergency', 'general_medicine', 'surgery']
+
+  - name: silver_staff_schedule
+    columns:
+      - name: staff_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('silver_staff')
+                field: staff_id
+
+      - name: yearweek
+        tests:
+          - not_null
+
+      - name: staff_name
+        tests:
+          - not_null
+
+      - name: present
+        tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+
+  - name: silver_admissions_requests
+    columns:
+      - name: request_id
+        tests:
+          - not_null
+          - unique
+
+      - name: accepted
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1]
