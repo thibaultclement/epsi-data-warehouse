@@ -1,0 +1,112 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Variables du TP
+\newcommand{\TPModule}{Datawarehouse}
+\newcommand{\TPNumero}{3}
+\newcommand{\TPKeywords}{datawarehouse, industrialisation, IA, sécurité, API, orchestration}
+\newcommand{\TPSujet}{Exploitation avancée du DWH (DEV)}
+\newcommand{\TPTheme}{Clinique}
+\input{preamble}
+
+\begin{document}
+\TPFrontPage
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Contexte}
+
+Lors des TP précédents, vous avez :
+
+\begin{itemize}
+  \item construit un pipeline de données (RAW → BRONZE → SILVER),
+  \item modélisé un datamart décisionnel (couche GOLD),
+  \item réalisé un premier tableau de bord répondant aux questions du directeur.
+\end{itemize}
+
+La clinique souhaite désormais aller plus loin et professionnaliser son système.
+
+\section*{Architecture existante}
+
+Base de données : \file{dwh/clinic\_dwh.db}
+
+Couches :
+
+\begin{itemize}
+  \item \file{bronze\_*}
+  \item \file{silver\_*}
+  \item \file{gold\_*}
+\end{itemize}
+
+Votre travail doit s'appuyer exclusivement sur la couche GOLD validée au TP2.
+
+% =============================================================================================
+
+\section*{Objectif}
+
+Formaliser l’architecture actuelle et proposer une vision cible.
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Réaliser un schéma d’architecture globale du système :
+  \begin{itemize}
+    \item sources,
+    \item ingestion,
+    \item dbt,
+    \item base SQLite,
+    \item outil BI.
+  \end{itemize}
+  \item Identifier 3 limites actuelles du système.
+  \item Proposer 3 améliorations possibles.
+\end{enumerate}
+
+\subsection*{Livrable}
+
+\begin{itemize}
+  \item Diagramme d’architecture (draw.io ou équivalent).
+  \item Analyse rédigée (10 lignes).
+\end{itemize}
+
+% =============================================================================================
+\section*{Parcours DEV}
+
+\subsection*{Objectif}
+
+Transformer le datamart en service applicatif exploitable via API.
+
+\subsection*{Travail demandé}
+
+\textbf{1. API REST (FastAPI recommandé)}
+
+Créer au minimum 4 endpoints :
+
+\begin{itemize}
+  \item \file{/kpi/occupation}
+  \item \file{/kpi/refus}
+  \item \file{/services}
+  \item \file{/summary}
+\end{itemize}
+
+\textbf{2. Dockerisation}
+
+\begin{itemize}
+  \item Créer un \file{Dockerfile}.
+  \item Fournir un \file{docker-compose}.
+\end{itemize}
+
+\textbf{3. Tests}
+
+\begin{itemize}
+  \item Implémenter au moins 2 tests unitaires.
+  \item Vérifier la cohérence des réponses API.
+\end{itemize}
+
+\subsection*{Livrables}
+
+\begin{itemize}
+  \item Code source structuré.
+  \item Dockerfile.
+  \item Documentation d’utilisation.
+\end{itemize}
+
+\end{document}

@@ -1,0 +1,271 @@
+\documentclass[11pt,a4paper]{article}
+
+% --- Variables du TP
+\newcommand{\TPModule}{Datawarehouse}
+\newcommand{\TPNumero}{2}
+\newcommand{\TPKeywords}{datawarehouse, datamart, star schema, dbt, KPI}
+\newcommand{\TPSujet}{Modélisation décisionnelle et couche GOLD}
+\newcommand{\TPTheme}{Clinique}
+\input{preamble}
+
+\begin{document}
+\TPFrontPage
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Contexte}
+
+Lors du TP1, vous avez :
+
+\begin{itemize}
+  \item exploré les données sources,
+  \item mis en place une couche \textbf{BRONZE} historisée,
+  \item construit une couche \textbf{SILVER} propre et testée via dbt.
+\end{itemize}
+
+Vous devez maintenant concevoir la \textbf{couche GOLD},
+c’est-à-dire un \textbf{datamart décisionnel} permettant de répondre
+aux questions stratégiques du directeur.
+
+\bigskip
+
+\section*{Rappel : Questions métier du directeur}
+
+L’objectif final est de pouvoir répondre aux questions suivantes :
+
+\begin{enumerate}
+  \item Quels services sont le plus souvent en tension ?
+  \item Quel est le taux moyen d’occupation par service ?
+  \item Combien de patients sont refusés chaque semaine et pourquoi ?
+  \item La satisfaction diminue-t-elle en période de forte activité ?
+  \item Existe-t-il un lien entre présence du personnel et tension ?
+  \item Quelle est la durée moyenne de séjour par service ?
+  \item Quels services semblent les plus rentables ?
+  \item Peut-on anticiper les semaines critiques ?
+\end{enumerate}
+
+\textbf{Objectif du TP2 :}
+construire le modèle décisionnel permettant de produire ces indicateurs.
+
+% ---------------------------------------------------------------------------------------------
+
+\section*{Architecture technique}
+
+Base de données : \file{dwh/clinic\_dwh.db}
+
+Séparation des couches par préfixe :
+
+\begin{itemize}
+  \item \file{bronze\_*}
+  \item \file{silver\_*}
+  \item \file{gold\_*} (à construire)
+\end{itemize}
+
+Les modèles GOLD devront être implémentés via \textbf{dbt}
+dans un dossier \file{models/gold/}.
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 1 : Définition du fait principal et du grain}
+
+\subsection*{Objectif}
+
+Définir précisément ce que l’on souhaite analyser.
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Identifier le \textbf{fait métier principal}.
+  \item Définir son \textbf{grain exact}.
+  \item Justifier ce choix.
+  \item Lister les mesures associées.
+\end{enumerate}
+
+\textbf{Indication :}
+un grain pertinent est souvent :
+\begin{center}
+\textit{1 ligne = 1 service × 1 semaine}
+\end{center}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 2 : Construction des indicateurs hebdomadaires}
+
+Aucune table agrégée hebdomadaire n’est fournie.
+Vous devez la construire à partir de la couche \textbf{silver}.
+
+\subsection*{Objectif}
+
+Créer une table décisionnelle agrégée par \textbf{service} et \textbf{yearweek}.
+
+\subsection*{Indicateurs attendus (minimum)}
+
+\begin{itemize}
+  \item Nombre de patients présents.
+  \item Nombre de demandes.
+  \item Nombre de patients admis.
+  \item Nombre de patients refusés.
+  \item Taux de refus.
+  \item Durée moyenne de séjour.
+  \item Satisfaction moyenne.
+  \item Nombre de membres du personnel présents.
+\end{itemize}
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Identifier les tables silver nécessaires.
+  \item Gérer les jointures et éventuelles duplications.
+  \item Créer un modèle dbt : \file{gold\_fact\_service\_weekly}.
+  \item Documenter les calculs effectués.
+\end{enumerate}
+
+\subsection*{Points d’attention}
+
+\begin{itemize}
+  \item Attention au grain lors des jointures.
+  \item Vérifier la cohérence : 
+  \file{patients\_refused = requests - admitted}.
+  \item Ne pas utiliser d’information future pour calculer une métrique passée.
+\end{itemize}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 3 : Construction des dimensions}
+
+\subsection*{Objectif}
+
+Mettre en place un schéma en étoile.
+
+\subsection*{Dimensions minimales attendues}
+
+\begin{itemize}
+  \item \file{gold\_dim\_service}
+  \item \file{gold\_dim\_date} (ou week)
+  \item \file{gold\_dim\_staff} (si pertinent)
+\end{itemize}
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Définir les attributs de chaque dimension.
+  \item Identifier les clés primaires.
+  \item Relier les dimensions à la table de faits.
+  \item Justifier les cardinalités.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 4 : Implémentation GOLD avec dbt}
+
+\subsection*{Consignes}
+
+\begin{enumerate}
+  \item Implémenter les modèles GOLD dans \file{models/gold/}.
+  \item Matérialisation en tables.
+  \item Documenter les modèles.
+\end{enumerate}
+
+\subsection*{Tests obligatoires}
+
+\begin{itemize}
+  \item \file{unique} + \file{not\_null} sur les PK.
+  \item \file{relationships} entre faits et dimensions.
+  \item Test métier simple sur un KPI.
+\end{itemize}
+
+\subsection*{Commandes attendues}
+
+\begin{lstlisting}
+dbt run  --select gold
+dbt test --select gold
+\end{lstlisting}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 5 : Historisation et volumétrie}
+
+\subsection*{Réflexion}
+
+\begin{enumerate}
+  \item Estimer la volumétrie annuelle.
+  \item Identifier une dimension susceptible d’évoluer.
+  \item Proposer une stratégie SCD (Type 1 ou Type 2). Justifier le choix.
+\end{enumerate}
+
+% ---------------------------------------------------------------------------------------------
+
+\section{Étape 6 : Exploitation décisionnelle (Dashboard BI)}
+
+\subsection*{Objectif}
+
+Valider la cohérence du datamart GOLD en construisant un premier
+tableau de bord décisionnel permettant de répondre aux questions
+du directeur.
+
+\subsection*{Outil recommandé}
+
+Power BI (ou outil équivalent : Tableau, Superset, etc.).
+
+\subsection*{Travail demandé}
+
+\begin{enumerate}
+  \item Se connecter à la base \file{clinic\_dwh.db}.
+  \item Importer uniquement les tables \file{gold\_*}.
+  \item Vérifier les relations entre tables (PK/FK).
+\end{enumerate}
+
+\subsection*{KPI minimums attendus}
+
+Construire au minimum les indicateurs suivants :
+
+\begin{itemize}
+  \item Taux d’occupation moyen par service.
+  \item Nombre de patients refusés par semaine.
+  \item Taux de refus.
+  \item Satisfaction moyenne.
+  \item Durée moyenne de séjour.
+  \item Nombre de membres du personnel présents.
+\end{itemize}
+
+Pour chaque KPI, préciser :
+
+\begin{itemize}
+  \item la définition métier,
+  \item la formule utilisée,
+  \item le niveau d’agrégation.
+\end{itemize}
+
+\subsection*{Structure attendue du dashboard}
+
+Créer au minimum :
+
+\begin{itemize}
+  \item Une page \textbf{Pilotage global} :
+  \begin{itemize}
+    \item KPI principaux (cartes),
+    \item évolution temporelle,
+    \item filtre par service.
+  \end{itemize}
+  \item Une page \textbf{Analyse détaillée} :
+  \begin{itemize}
+    \item comparaison entre services,
+    \item focus sur les refus et la satisfaction,
+    \item possibilité de filtrer par période.
+  \end{itemize}
+\end{itemize}
+
+\subsection*{Analyse attendue}
+
+Rédiger une courte analyse (10 lignes environ) répondant à au moins
+\textbf{3 questions du directeur} à partir du dashboard construit.
+
+\subsection*{Livrables attendus}
+
+\begin{itemize}
+  \item Fichier Power BI (\file{.pbix}) ou captures d’écran.
+  \item Liste des KPI définis (avec formules).
+  \item Analyse rédigée.
+\end{itemize}
+
+\end{document}
