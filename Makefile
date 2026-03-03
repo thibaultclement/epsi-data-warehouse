@@ -14,11 +14,5 @@ silver:
 	dbt run --project-dir $(DBT_PROJECT) --profiles-dir $(DBT_PROFILES) --select silver
 	dbt test --project-dir $(DBT_PROJECT) --profiles-dir $(DBT_PROFILES) --select silver
 
-gold:
-	dbt run --project-dir $(DBT_PROJECT) --profiles-dir $(DBT_PROFILES) --select gold
-	dbt test --project-dir $(DBT_PROJECT) --profiles-dir $(DBT_PROFILES) --select gold
-
-all: ingest silver gold
-
 clean:
 	rm -f dwh/clinic_dwh.db
