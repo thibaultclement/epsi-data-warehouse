@@ -1,0 +1,53 @@
+# -----------------------
+# Python
+# -----------------------
+.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+dist/
+build/
+
+# -----------------------
+# VSCode / OS
+# -----------------------
+.vscode/
+.DS_Store
+Thumbs.db
+
+# -----------------------
+# SQLite / local DB (recommandé)
+# -----------------------
+dwh/*.db
+dwh/*.db-journal
+
+# -----------------------
+# dbt artifacts
+# -----------------------
+dbt_clinic/target/
+dbt_clinic/logs/
+dbt_clinic/dbt_packages/
+dbt_clinic/package-lock.yml
+
+# -----------------------
+# LaTeX (global)
+# -----------------------
+*.aux
+*.log
+*.out
+*.toc
+*.lof
+*.lot
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.bbl
+*.bcf
+*.blg
+*.run.xml
